@@ -1,5 +1,4 @@
 #!/bin/sh
-# Cek endpoint publik dengan User-Agent tugas.
 cek() {
   label="$1"
   url="$2"

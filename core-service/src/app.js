@@ -7,7 +7,6 @@ const pinoHttp = require('pino-http');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yaml');
 const db = require('./db');
-const config = require('./config');
 const { globalLimiter } = require('./middleware/rateLimit');
 const { errorHandler } = require('./middleware/errorHandler');
 

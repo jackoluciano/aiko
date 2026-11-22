@@ -1,0 +1,19 @@
+{
+  "info": {"name":"LiterasiGizi (aiko)","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "item":[
+    {"name":"Auth","item":[
+      {"name":"Register","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/auth/register","body":{"mode":"raw","raw":"{\"email\":\"uji.parent@aiko.test\",\"password\":\"Demo12345!\",\"consent\":true}}"}},
+      {"name":"Login parent","event":[{"listen":"test","script":{"exec":["pm.test('status 200',()=>pm.response.to.have.status(200));","const body=pm.response.json(); pm.environment.set('parentToken',body.token);"]}}],"request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/auth/login","body":{"mode":"raw","raw":"{\"email\":\"demo.parent@aiko.test\",\"password\":\"Demo12345!\"}"}}}}]},
+    {"name":"Profil","item":[
+      {"name":"Buat player","event":[{"listen":"test","script":{"exec":["pm.test('status 201',()=>pm.response.to.have.status(201));","pm.environment.set('playerId',pm.response.json().id);"]}}],"request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{parentToken}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/players","body":{"mode":"raw","raw":"{\"display_name\":\"Anak Uji\",\"username\":\"anak_uji\",\"pin\":\"1234\",\"grade\":3}"}}},
+      {"name":"Child login","event":[{"listen":"test","script":{"exec":["pm.test('status 200',()=>pm.response.to.have.status(200));","pm.environment.set('childToken',pm.response.json().token);"]}}],"request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/auth/child-login","body":{"mode":"raw","raw":"{\"username\":\"demo_kid\",\"pin\":\"1234\"}"}}}}]},
+    {"name":"Konten","item":[
+      {"name":"Modules grade 3","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{childToken}}"}],"url":"{{baseUrl}}/modules?grade=3"}},
+      {"name":"Topics","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{childToken}}"}],"url":"{{baseUrl}}/topics"}}]},
+    {"name":"Belajar","item":[
+      {"name":"Path","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{childToken}}"}],"url":"{{baseUrl}}/players/{{playerId}}/path"}},
+      {"name":"Start quiz","event":[{"listen":"test","script":{"exec":["pm.test('status 200',()=>pm.response.to.have.status(200));","const b=pm.response.json(); pm.environment.set('sessionId',b.sessionId); pm.environment.set('questionId',b.question.id);"]}}],"request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{childToken}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/quizzes/{{sessionId}}/start","body":{"mode":"raw","raw":"{\"playerId\":\"{{playerId}}\"}"}}},{"name":"Answer","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{childToken}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{baseUrl}}/quizzes/{{sessionId}}/answer","body":{"mode":"raw","raw":"{\"questionId\":\"{{questionId}}\",\"chosenIndex\":0}"}}}]},
+    {"name":"Progres","item":[{"name":"Progress","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{childToken}}"}],"url":"{{baseUrl}}/players/{{playerId}}/progress"}},{"name":"Badges","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{childToken}}"}],"url":"{{baseUrl}}/players/{{playerId}}/badges"}}]},
+    {"name":"Open (kelompok lain)","item":[{"name":"Topics","request":{"method":"GET","header":[{"key":"X-API-Key","value":"{{apiKey}}"}],"url":"{{baseUrl}}/open/topics"}},{"name":"Quizzes","request":{"method":"GET","header":[{"key":"X-API-Key","value":"{{apiKey}}"}],"url":"{{baseUrl}}/open/quizzes?grade=3&limit=5"}}]}
+  ]
+}

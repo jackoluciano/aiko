@@ -1,0 +1,354 @@
+openapi: 3.0.3
+info:
+  title: LiterasiGizi Service (aiko)
+  version: 1.0.0
+  description: API jalur belajar dan kuis adaptif LiterasiGizi.
+  contact:
+    name: Kelompok aiko K02
+    url: https://aiko.stei.site
+servers:
+  - url: https://aiko.stei.site/api
+  - url: http://localhost:8080/api
+tags:
+  - name: Auth
+  - name: Profil
+  - name: Konten
+  - name: Belajar
+  - name: Progres
+  - name: Open (kelompok lain)
+  - name: Health
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code,message,details]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: array, items: {} }
+    Player:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string }
+        username: { type: string }
+        grade: { type: integer, minimum: 1, maximum: 6 }
+        daily_limit_minutes: { type: integer, minimum: 5, maximum: 60 }
+        share_progress: { type: boolean }
+    Module:
+      type: object
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        topic: { type: string }
+        summary: { type: string }
+        content_md: { type: string }
+    Question:
+      type: object
+      properties:
+        id: { type: string }
+        text: { type: string }
+        options: { type: array, items: { type: string }, minItems: 3, maxItems: 4 }
+        difficulty: { type: integer, minimum: 1, maximum: 3 }
+        topic: { type: string }
+    OpenQuestion:
+      allOf:
+        - $ref: '#/components/schemas/Question'
+        - type: object
+          properties:
+            image_url: { type: string, nullable: true }
+    QuizSession:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [active,finished,abandoned] }
+        total_questions: { type: integer }
+        score: { type: integer }
+    AnswerResult:
+      type: object
+      properties:
+        isCorrect: { type: boolean }
+        correctIndex: { type: integer }
+        explanation: { type: string }
+        finished: { type: boolean }
+    Progress:
+      type: object
+      properties:
+        points: { type: integer }
+        level: { type: integer }
+        nextLevelAt: { type: integer }
+    Badge:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+    Mission:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [pending,checked] }
+  responses:
+    ValidationError:
+      description: Input tidak valid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Autentikasi gagal
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Tidak memiliki izin
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Tidak ditemukan
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Konflik
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Terlalu banyak permintaan
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+paths:
+  /health:
+    get:
+      tags: [Health]
+      responses:
+        '200': { description: Sehat }
+        '503': { description: Database bermasalah }
+  /auth/register:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email,password,consent]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                consent: { type: boolean, example: true }
+      responses:
+        '201': { description: Terdaftar }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      responses:
+        '200': { description: Berhasil }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/child-login:
+    post:
+      tags: [Auth]
+      responses:
+        '200': { description: Berhasil }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Profil token }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /players:
+    get:
+      tags: [Profil]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Daftar anak }
+    post:
+      tags: [Profil]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '201': { description: Anak dibuat }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /players/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Profil]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Detail anak }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Profil]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Anak diperbarui }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Profil]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '204': { description: Dihapus }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /modules:
+    get:
+      tags: [Konten]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - in: query
+          name: grade
+          schema: { type: integer, minimum: 1, maximum: 6 }
+        - in: query
+          name: topic
+          schema: { type: string }
+      responses:
+        '200': { description: Daftar modul }
+  /modules/{id}:
+    get:
+      tags: [Konten]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Detail modul }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /topics:
+    get:
+      tags: [Konten]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Daftar topik }
+  /players/{id}/path:
+    get:
+      tags: [Belajar]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Jalur belajar }
+  /quizzes/{moduleId}/start:
+    post:
+      tags: [Belajar]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: moduleId, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Sesi dimulai }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /quizzes/{sessionId}/answer:
+    post:
+      tags: [Belajar]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: sessionId, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Jawaban dinilai }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /quizzes/{sessionId}:
+    get:
+      tags: [Belajar]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: sessionId, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Status sesi }
+  /players/{id}/mastery:
+    get:
+      tags: [Belajar]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Penguasaan topik }
+  /players/{id}/progress:
+    get:
+      tags: [Progres]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Ringkasan progres }
+  /players/{id}/badges:
+    get:
+      tags: [Progres]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Lencana }
+  /players/{id}/missions:
+    get:
+      tags: [Progres]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }, { in: query, name: date, schema: { type: string } }]
+      responses:
+        '200': { description: Misi harian }
+  /missions/{id}/check:
+    post:
+      tags: [Progres]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Misi dicentang }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /open/topics:
+    get:
+      tags: [Open (kelompok lain)]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: Daftar topik }
+  /open/quizzes:
+    get:
+      tags: [Open (kelompok lain)]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - in: query
+          name: topic
+          schema: { type: string }
+        - in: query
+          name: grade
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 5 }
+      responses:
+        '200': { description: Kuis tanpa kunci }
+  /open/quizzes/check:
+    post:
+      tags: [Open (kelompok lain)]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: Hasil jawaban }
+  /open/progress/{playerId}:
+    get:
+      tags: [Open (kelompok lain)]
+      security: [{ ApiKeyAuth: [] }]
+      parameters: [{ in: path, name: playerId, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Ringkasan izin dibagikan }
+        '403': { $ref: '#/components/responses/Forbidden' }

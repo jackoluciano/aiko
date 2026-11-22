@@ -60,11 +60,13 @@ router.post('/quizzes/:moduleId/start', validate(startQuizSchema), (req, res) =>
     throw new ApiError(403, 'DAILY_LIMIT_REACHED', 'Batas waktu belajar hari ini sudah tercapai.');
   }
 
+  const questionCount = db.prepare('SELECT COUNT(*) AS count FROM questions WHERE module_id=?').get(module.id).count;
+  if (!questionCount) throw new ApiError(404, 'NOT_FOUND', 'Belum ada soal untuk modul ini.');
   let session = db.prepare('SELECT * FROM quiz_sessions WHERE player_id=? AND module_id=? AND status=?').get(player.id, module.id, 'active');
   if (!session) {
     const id = crypto.randomUUID();
     db.prepare(`INSERT INTO quiz_sessions (id,player_id,module_id,status,current_difficulty,total_questions,correct_count,score,passed,started_at,duration_seconds)
-      VALUES (?,?,?,?,?,?,?,?,?,?,0)`).run(id, player.id, module.id, 'active', 2, QUIZ_LENGTH, 0, 0, 0, new Date().toISOString());
+      VALUES (?,?,?,?,?,?,?,?,?,?,0)`).run(id, player.id, module.id, 'active', 2, Math.min(QUIZ_LENGTH, questionCount), 0, 0, 0, new Date().toISOString());
     session = db.prepare('SELECT * FROM quiz_sessions WHERE id=?').get(id);
   }
   const answerIds = db.prepare('SELECT question_id FROM answers WHERE session_id=?').all(session.id).map((row) => row.question_id);
@@ -97,14 +99,14 @@ router.post('/quizzes/:sessionId/answer', validate(answerSchema), (req, res) => 
   let result = null;
   let nextQuestion = null;
 
-  if (answerCount >= session.total_questions) {
+  const used = db.prepare('SELECT question_id FROM answers WHERE session_id=?').all(session.id).map((row) => row.question_id);
+  const questions = db.prepare('SELECT * FROM questions WHERE module_id=?').all(session.module_id);
+  const next = answerCount >= session.total_questions ? null : selectQuestion(questions, difficulty, used);
+  if (!next) {
     finished = true;
     result = finishSession(session.id);
   } else {
-    const used = db.prepare('SELECT question_id FROM answers WHERE session_id=?').all(session.id).map((row) => row.question_id);
-    const questions = db.prepare('SELECT * FROM questions WHERE module_id=?').all(session.module_id);
-    const next = selectQuestion(questions, difficulty, used);
-    if (next) nextQuestion = publicQuestion(next);
+    nextQuestion = publicQuestion(next);
   }
 
   const response = {
@@ -179,7 +181,7 @@ function finishSession(sessionId) {
     const points = pointsForQuiz(scoreResult.score, scoreResult.passed);
     db.prepare('INSERT INTO points_ledger (id,player_id,delta,reason,ref_id,created_at) VALUES (?,?,?,?,?,?)')
       .run(crypto.randomUUID(), session.player_id, points, 'quiz_completed', session.id, finishedAt.toISOString());
-    evaluateBadges(session.player_id, scoreResult, session.module_id);
+    evaluateBadges(session.player_id, scoreResult, session.module_id, finishedAt.toISOString());
     const total = db.prepare('SELECT COALESCE(SUM(delta),0) AS points FROM points_ledger WHERE player_id=?').get(session.player_id).points;
     const level = levelFromPoints(total);
     const newBadges = db.prepare(`SELECT b.code FROM player_badges pb JOIN badges b ON b.id=pb.badge_id
@@ -209,14 +211,14 @@ function createMission(playerId, module, date) {
     .run(crypto.randomUUID(), playerId, module.id, today, title, description, 'pending');
 }
 
-function evaluateBadges(playerId, scoreResult, moduleId) {
+function evaluateBadges(playerId, scoreResult, moduleId, earnedAt = new Date().toISOString()) {
   const quizCount = db.prepare(`SELECT COUNT(*) AS count FROM quiz_sessions WHERE player_id=? AND status='finished'`).get(playerId).count;
   const award = (code) => {
     const badge = db.prepare('SELECT * FROM badges WHERE code=?').get(code);
     if (!badge) return;
     if (!db.prepare('SELECT 1 FROM player_badges WHERE player_id=? AND badge_id=?').get(playerId, badge.id)) {
       db.prepare('INSERT INTO player_badges (player_id,badge_id,earned_at) VALUES (?,?,?)')
-        .run(playerId, badge.id, new Date().toISOString());
+        .run(playerId, badge.id, earnedAt);
     }
   };
   if (quizCount >= 1) award('first_quiz');

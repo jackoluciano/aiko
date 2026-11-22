@@ -5,7 +5,7 @@ const startQuizSchema = z.object({
 });
 
 const answerSchema = z.object({
-  questionId: z.string().uuid(),
+  questionId: z.string().min(1).max(100),
   chosenIndex: z.number().int().min(0).max(3)
 });
 

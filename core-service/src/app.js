@@ -43,12 +43,24 @@ app.get('/api/health', (req, res) => {
   }
 });
 
-const openapiPath = path.join(__dirname, '../../docs/openapi.yaml');
-if (fs.existsSync(openapiPath)) {
-  const openapiText = fs.readFileSync(openapiPath, 'utf8');
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(YAML.parse(openapiText)));
-  app.get('/api/openapi.yaml', (req, res) => res.type('application/yaml').send(openapiText));
-}
+const openapiCandidates = [
+  path.join(__dirname, '../../docs/openapi.yaml'),
+  path.join(process.cwd(), 'docs/openapi.yaml')
+];
+const openapiPath = openapiCandidates.find((candidate) => fs.existsSync(candidate));
+const openapiText = openapiPath
+  ? fs.readFileSync(openapiPath, 'utf8')
+  : YAML.stringify({
+      openapi: '3.0.3',
+      info: { title: 'LiterasiGizi Service (aiko)', version: '1.0.0' },
+      paths: {}
+    });
+const openapiDoc = YAML.parse(openapiText);
+
+app.get('/api/openapi.yaml', (req, res) => res.type('application/yaml').send(openapiText));
+app.get('/api/docs', (req, res) => res.type('html').send(swaggerUi.generateHTML(openapiDoc)));
+app.use('/api/docs', swaggerUi.serve);
+app.get('/api/docs/', swaggerUi.setup(openapiDoc));
 
 app.use('/api/auth', require('./modules/auth/routes'));
 app.use('/api/players', require('./modules/profile/routes'));

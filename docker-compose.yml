@@ -1,6 +1,8 @@
 services:
   core-service:
-    build: ./core-service
+    build:
+      context: .
+      dockerfile: core-service/Dockerfile
     restart: unless-stopped
     env_file: .env
     environment:
